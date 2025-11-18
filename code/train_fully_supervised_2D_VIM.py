@@ -142,6 +142,12 @@ def train(args, snapshot_path):
     iter_num = 0
     max_epoch = max_iterations // len(trainloader) + 1
     best_performance = 0.0
+    patience = 100
+    no_improve = 0
+    early_stop = False
+
+    last_val_dice = None 
+
     iterator = tqdm(range(max_epoch), ncols=70)
     for epoch_num in iterator:
         for i_batch, sampled_batch in enumerate(trainloader):
@@ -169,19 +175,19 @@ def train(args, snapshot_path):
             writer.add_scalar('info/loss_ce', loss_ce, iter_num)
             writer.add_scalar('info/loss_dice', loss_dice, iter_num)
 
-            logging.info(
-                'iteration %d : loss : %f, loss_ce: %f, loss_dice: %f' %
-                (iter_num, loss.item(), loss_ce.item(), loss_dice.item()))
+            # logging.info(
+            #     'iteration %d : loss : %f, loss_ce: %f, loss_dice: %f' %
+            #     (iter_num, loss.item(), loss_ce.item(), loss_dice.item()))
 
-            if iter_num % 20 == 0:
-                image = volume_batch[1, 0:1, :, :]
-                writer.add_image('train/Image', image, iter_num)
-                outputs = torch.argmax(torch.softmax(
-                    outputs, dim=1), dim=1, keepdim=True)
-                writer.add_image('train/Prediction',
-                                 outputs[1, ...] * 50, iter_num)
-                labs = label_batch[1, ...].unsqueeze(0) * 50
-                writer.add_image('train/GroundTruth', labs, iter_num)
+            # if iter_num % 20 == 0:
+            #     image = volume_batch[1, 0:1, :, :]
+            #     writer.add_image('train/Image', image, iter_num)
+            #     outputs = torch.argmax(torch.softmax(
+            #         outputs, dim=1), dim=1, keepdim=True)
+            #     writer.add_image('train/Prediction',
+            #                      outputs[1, ...] * 50, iter_num)
+            #     labs = label_batch[1, ...].unsqueeze(0) * 50
+            #     writer.add_image('train/GroundTruth', labs, iter_num)
 
             if iter_num > 0 and iter_num % 200 == 0:
                 model.eval()
@@ -197,37 +203,92 @@ def train(args, snapshot_path):
                     writer.add_scalar('info/val_{}_hd95'.format(class_i+1),
                                       metric_list[class_i, 1], iter_num)
 
+                
+
                 performance = np.mean(metric_list, axis=0)[0]
-
                 mean_hd95 = np.mean(metric_list, axis=0)[1]
-                writer.add_scalar('info/val_mean_dice', performance, iter_num)
-                writer.add_scalar('info/val_mean_hd95', mean_hd95, iter_num)
+                last_val_dice = performance
 
+                # writer.add_scalar('info/val_mean_dice', performance, iter_num)
+                # writer.add_scalar('info/val_mean_hd95', mean_hd95, iter_num)
+
+                # --- Early stopping logic based on val mean Dice ---
                 if performance > best_performance:
                     best_performance = performance
-                    save_mode_path = os.path.join(snapshot_path,
-                                                  'iter_{}_dice_{}.pth'.format(
-                                                      iter_num, round(best_performance, 4)))
-                    save_best = os.path.join(snapshot_path,
-                                             '{}_best_model.pth'.format(args.model))
+                    no_improve = 0  # reset patience counter
+
+                    save_mode_path = os.path.join(
+                        snapshot_path,
+                        'iter_{}_dice_{}.pth'.format(iter_num, round(best_performance, 4))
+                    )
+                    save_best = os.path.join(
+                        snapshot_path,
+                        '{}_best_model.pth'.format(args.model)
+                    )
                     torch.save(model.state_dict(), save_mode_path)
                     torch.save(model.state_dict(), save_best)
+                    logging.info(
+                        'New best model at iter %d: mean_dice = %.4f, mean_hd95 = %.4f'
+                        % (iter_num, performance, mean_hd95)
+                    )
+                else:
+                    no_improve += 1
+                    logging.info(
+                        'No improvement in mean_dice (%.4f). '
+                        'Patience: %d/%d'
+                        % (performance, no_improve, patience)
+                    )
 
-                logging.info(
-                    'iteration %d : mean_dice : %f mean_hd95 : %f' % (iter_num, performance, mean_hd95))
+                # check early stopping condition
+                if no_improve >= patience:
+                    logging.info(
+                        'Early stopping triggered at iter %d: '
+                        'no improvement in mean_dice for %d validation checks.'
+                        % (iter_num, patience)
+                    )
+                    early_stop = True
+
+                model.train()
+                if early_stop:
+                    break
+                
+                # if performance > best_performance:
+                #     best_performance = performance
+                #     save_mode_path = os.path.join(snapshot_path,
+                #                                   'iter_{}_dice_{}.pth'.format(
+                #                                       iter_num, round(best_performance, 4)))
+                #     save_best = os.path.join(snapshot_path,
+                #                              '{}_best_model.pth'.format(args.model))
+                #     torch.save(model.state_dict(), save_mode_path)
+                #     torch.save(model.state_dict(), save_best)
+
+                # logging.info(
+                    # 'iteration %d : mean_dice : %f mean_hd95 : %f' % (iter_num, performance, mean_hd95))
                 model.train()
 
-            if iter_num % 3000 == 0:
-                save_mode_path = os.path.join(
-                    snapshot_path, 'iter_' + str(iter_num) + '.pth')
-                torch.save(model.state_dict(), save_mode_path)
-                logging.info("save model to {}".format(save_mode_path))
+            # if iter_num % 3000 == 0:
+            #     save_mode_path = os.path.join(
+            #         snapshot_path, 'iter_' + str(iter_num) + '.pth')
+            #     torch.save(model.state_dict(), save_mode_path)
+            #     logging.info("save model to {}".format(save_mode_path))
 
             if iter_num >= max_iterations:
                 break
-        if iter_num >= max_iterations:
-            iterator.close()
-            break
+
+            if last_val_dice is not None:
+                logging.info(
+                    f"Epoch {epoch_num}: "
+                    f"last_val_dice = {last_val_dice:.4f}, "
+                    f"best_val_dice = {best_performance:.4f}, "
+                    f"patience = {no_improve}/{patience}"
+                )
+            else:
+                logging.info(
+                    f"Epoch {epoch_num}: no validation run yet. "
+                    f"best_val_dice = {best_performance:.4f}, "
+                    f"patience = {no_improve}/{patience}"
+                )
+
     writer.close()
     return "Training Finished!"
 
