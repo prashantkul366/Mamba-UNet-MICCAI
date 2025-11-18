@@ -275,19 +275,19 @@ def train(args, snapshot_path):
             if iter_num >= max_iterations:
                 break
 
-            if last_val_dice is not None:
-                logging.info(
-                    f"Epoch {epoch_num}: "
-                    f"last_val_dice = {last_val_dice:.4f}, "
-                    f"best_val_dice = {best_performance:.4f}, "
-                    f"patience = {no_improve}/{patience}"
-                )
-            else:
-                logging.info(
-                    f"Epoch {epoch_num}: no validation run yet. "
-                    f"best_val_dice = {best_performance:.4f}, "
-                    f"patience = {no_improve}/{patience}"
-                )
+        if last_val_dice is not None:
+            logging.info(
+                f"Epoch {epoch_num}: "
+                f"last_val_dice = {last_val_dice:.4f}, "
+                f"best_val_dice = {best_performance:.4f}, "
+                f"patience = {no_improve}/{patience}"
+            )
+        else:
+            logging.info(
+                f"Epoch {epoch_num}: no validation run yet. "
+                f"best_val_dice = {best_performance:.4f}, "
+                f"patience = {no_improve}/{patience}"
+            )
 
     writer.close()
     return "Training Finished!"
