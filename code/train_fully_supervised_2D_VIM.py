@@ -32,7 +32,7 @@ from val_2D import test_single_volume, test_single_volume_ds
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--root_path', type=str,
-                    default='../data/ACDC', help='Name of Experiment')
+                    default='../data/ACDC/ACDC', help='Name of Experiment')
 parser.add_argument('--exp', type=str,
                     default='ACDC/Fully_Supervised', help='experiment_name')
 parser.add_argument('--model', type=str,
