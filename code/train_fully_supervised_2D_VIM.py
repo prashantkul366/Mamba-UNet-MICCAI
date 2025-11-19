@@ -41,7 +41,7 @@ parser.add_argument('--num_classes', type=int,  default=4,
                     help='output channel of network')
 
 parser.add_argument(
-    '--cfg', type=str, default="/content/drive/MyDrive/Prashant/Mamba-UNet-MICCAI/code/pretrained_ckpt/vmamba_pretrained.pth", help='path to config file', )
+    '--cfg', type=str, default="../code/configs/vmamba_tiny.yaml", help='path to config file', )
 parser.add_argument(
     "--opts",
     help="Modify config options by adding 'KEY VALUE' pairs. ",
