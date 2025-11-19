@@ -50,7 +50,7 @@ class MambaUnet(nn.Module):
         if pretrained_path is not None:
             print("pretrained_path:{}".format(pretrained_path))
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            pretrained_dict = torch.load(pretrained_path, map_location=device)
+            pretrained_dict = torch.load(pretrained_path, map_location=device, weights_only=False)
             if "model"  not in pretrained_dict:
                 print("---start load pretrained modle by splitting---")
                 pretrained_dict = {k[17:]:v for k,v in pretrained_dict.items()}
